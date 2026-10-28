@@ -1,0 +1,32 @@
+{
+  "name": "google-business-profile-manager",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n api,web \"npm run dev -w @gbp/api\" \"npm run dev -w @gbp/web\"",
+    "build": "npm run build -w @gbp/contracts && npm run build -w @gbp/api && npm run build -w @gbp/web",
+    "lint": "eslint .",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:generate": "npm run db:generate -w @gbp/api",
+    "db:migrate": "npm run db:migrate -w @gbp/api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "eslint": "^9.39.0",
+    "typescript-eslint": "^8.46.0",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "deepmerge-ts": "8.0.2"
+  }
+}

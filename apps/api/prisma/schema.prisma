@@ -1,0 +1,108 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+  engineType   = "client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AppRole {
+  VIEWER
+  MANAGER
+}
+
+enum ThemePreference {
+  light
+  dark
+  system
+}
+
+enum LanguagePreference {
+  en
+  vi
+}
+
+model User {
+  languagePreference        LanguagePreference?
+  themePreference           ThemePreference?
+  id                        String                           @id @default(uuid()) @db.Uuid
+  email                     String                           @unique
+  displayName               String
+  createdAt                 DateTime                         @default(now()) @db.Timestamptz(3)
+  oauthConnections          OAuthConnection[]
+  businessConnections       GoogleBusinessConnection[]
+  businessOAuthTransactions GoogleBusinessOAuthTransaction[]
+  membership                Membership?
+  sessions                  Session[]
+}
+
+model OAuthConnection {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @db.Uuid
+  provider        String
+  providerSubject String
+  scopes          String[]
+  updatedAt       DateTime @updatedAt @db.Timestamptz(3)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerSubject])
+  @@unique([userId, provider])
+}
+
+model Membership {
+  userId String  @id @db.Uuid
+  role   AppRole @default(VIEWER)
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Session {
+  sessionHash String   @id @db.Char(64)
+  userId      String   @db.Uuid
+  expiresAt   DateTime @db.Timestamptz(3)
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model OAuthTransaction {
+  stateHash   String   @id @db.Char(64)
+  browserHash String   @db.Char(64)
+  nonceHash   String   @db.Char(64)
+  expiresAt   DateTime @db.Timestamptz(3)
+
+  @@index([browserHash])
+  @@index([expiresAt])
+}
+
+model GoogleBusinessConnection {
+  id                    String   @id @default(uuid()) @db.Uuid
+  userId                String   @db.Uuid
+  googleSubject         String
+  email                 String
+  encryptedRefreshToken String
+  scopes                String[]
+  status                String   @default("ACTIVE")
+  createdAt             DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime @updatedAt @db.Timestamptz(3)
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, googleSubject])
+  @@index([userId, status])
+}
+
+model GoogleBusinessOAuthTransaction {
+  stateHash   String   @id @db.Char(64)
+  browserHash String   @db.Char(64)
+  sessionHash String   @db.Char(64)
+  nonceHash   String   @db.Char(64)
+  userId      String   @db.Uuid
+  expiresAt   DateTime @db.Timestamptz(3)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
