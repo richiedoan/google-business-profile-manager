@@ -1,8 +1,5 @@
 # Google Business Profile Manager
 
-Phase 1 bootstrap: Next.js + TypeScript, NestJS + TypeScript, PostgreSQL + Prisma,
-and shared application contracts in an npm workspace.
-
 ## Local setup
 
 Requires Node.js 22.12+ (Node.js 24 recommended), npm, and Docker Compose.
