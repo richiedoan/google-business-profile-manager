@@ -1,126 +1,130 @@
 # Google Business Profile Manager
 
-Ứng dụng quản lý Google Business Profile (GBP) cho người vận hành nhiều địa điểm hoặc nhiều tài khoản Google: xem hồ sơ, theo dõi hiệu suất, quản lý nội dung và thử nghiệm cập nhật hàng loạt qua dữ liệu mock.
+Manage **multiple locations** and **multiple Google accounts** in one workspace. View business profiles, track performance, manage content, and test bulk updates with mock data.
 
-Project gồm web Next.js, API NestJS theo mô hình Backend for Frontend (BFF), PostgreSQL và bộ contracts dùng chung trong npm workspace. **Đọc dữ liệu Google và quản lý nội dung đã được triển khai; sửa thông tin hồ sơ địa điểm Google chưa được hỗ trợ.** Xem bảng phạm vi bên dưới trước khi sử dụng.
+Built with **Next.js**, **NestJS**, **PostgreSQL**, and shared TypeScript contracts in an npm workspace.
 
-## 1. Bài toán
+**Current scope:** Google data reads and content management are implemented. **Editing Google location profile fields is not supported yet.** See the feature table below for details.
 
-Khi quản lý nhiều chi nhánh, người vận hành cần biết địa điểm nào đang mở, thông tin liên hệ có đầy đủ không, chi nhánh nào có lượt xem hoặc tương tác, và review nào cần phản hồi. Khi các hồ sơ thuộc nhiều tài khoản Google, việc chuyển tài khoản và kiểm tra từng địa điểm làm quy trình này khó theo dõi.
+## 1. The problem
 
-Hệ thống cần giải quyết các nhu cầu:
+Teams managing many branches need to check opening status, contact details, performance, and reviews across locations. When profiles belong to different Google accounts, switching accounts and checking each location makes the work harder to track.
 
-- Tập trung nhiều kết nối Google trong một workspace, chọn đúng tài khoản doanh nghiệp và địa điểm.
-- Xem danh sách lớn qua tìm kiếm, lọc và tải từng trang; mở chi tiết mà vẫn giữ đúng ngữ cảnh kết nối.
-- Xem hiệu suất từng địa điểm và tổng hợp theo tài khoản, phân biệt số liệu thiếu với số liệu bằng 0.
-- Quản lý ảnh, bài đăng và phản hồi review theo quyền của người dùng.
-- Kiểm tra quyền tại server và giữ Google token ngoài trình duyệt.
-- Có môi trường thử nghiệm không cần thay đổi hồ sơ công khai trên Google.
+This project brings these tasks into one place:
 
-## 2. Các hướng giải quyết
+- **Multiple Google accounts:** choose a connection, business account, and location in the same workspace.
+- **Large location lists:** search, filter, and load one page at a time while keeping the correct connection.
+- **Performance reporting:** view results for one location or a whole account, with missing data shown separately from zero values.
+- **Content management:** manage photos, posts, and review replies based on user permissions.
+- **Server-side access checks:** keep Google tokens on the server and check access before each operation.
+- **Local testing:** test workflows without changing public Google profiles.
 
-Các phương án dưới đây là những hướng có thể cân nhắc cho bài toán, không phải danh sách sản phẩm đã benchmark.
+## 2. Possible solutions
 
-| Hướng                                            | Phù hợp khi                                                                         | Đánh đổi                                                                         |
-| ------------------------------------------------ | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| Thao tác trực tiếp trong Google Business Profile | Nhu cầu thao tác chủ yếu trên từng hồ sơ và quy trình có sẵn đáp ứng được công việc | Quy trình kiểm tra, tổng hợp và phối hợp phụ thuộc vào giao diện Google          |
-| Spreadsheet và script gọi API                    | Cần báo cáo hoặc tác vụ nội bộ với phạm vi hẹp                                      | Phải tự quản lý OAuth, quyền truy cập, lỗi từng bản ghi và giao diện vận hành    |
-| Nền tảng quản lý bên thứ ba                      | Muốn dùng ngay một quy trình có sẵn                                                 | Cần đánh giá chi phí, quyền truy cập dữ liệu và mức độ phù hợp của từng sản phẩm |
-| Tự xây web + BFF + Google API, như project này   | Cần chủ động quy trình, phân quyền và cách trình bày dữ liệu                        | Tự chịu trách nhiệm triển khai, vận hành, bảo mật và thay đổi API từ Google      |
+These are options for solving the problem. They are not a benchmark of specific products.
 
-## 3. Vì sao project chọn web + BFF + provider
+| Approach                                          | Good fit                                                           | Trade-off                                                          |
+| ------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| **Google Business Profile UI**                    | Working on individual profiles when Google's tools meet your needs | Review, reporting, and teamwork follow Google's interface          |
+| **Spreadsheets and API scripts**                  | Small reports or focused internal tasks                            | You manage OAuth, permissions, errors, and the user interface      |
+| **Third-party platform**                          | Using an existing workflow with less custom development            | You need to check pricing, data access, and fit for your team      |
+| **Custom web app + BFF + Google APIs**, used here | Controlling workflows, permissions, and reports                    | You maintain hosting, security, operations, and Google API changes |
 
-Kiến trúc hiện tại tách giao diện vận hành khỏi tích hợp Google. Các lý do phù hợp với thiết kế trong code:
+## 3. Why this project uses a BFF and providers
 
-- **BFF làm ranh giới truy cập:** NestJS xác thực session, kiểm tra role, chủ sở hữu kết nối và quyền trên account/location trước khi gọi provider. Trình duyệt chỉ gọi API của ứng dụng.
-- **Tách đăng nhập khỏi cấp quyền Business:** đăng nhập Google tạo danh tính trong app; kết nối Business là luồng consent riêng. Một người dùng app có thể kết nối nhiều tài khoản Google mà không đổi session hay role.
-- **Provider thay thế được:** mock và Google cùng đi qua `BusinessProfileProvider`, giúp kiểm tra luồng đọc, lỗi và quyền bằng fixture, trong khi phần gọi Google ở lại server.
-- **Contracts thuộc ứng dụng:** TypeScript và Zod dùng chung giữa web/API, tránh để UI phụ thuộc trực tiếp vào Prisma model hoặc Google response.
-- **Session bền vững trong PostgreSQL:** restart API không làm mất session; refresh token Business được mã hóa trước khi lưu.
-- **Monorepo npm workspace:** web, API và contracts có thể thay đổi cùng nhau, với build và kiểm tra từ thư mục gốc.
+The design separates the user interface from Google integration. A **Backend for Frontend (BFF)** handles requests from the web app and controls access to data.
 
-Đánh đổi là phải vận hành cả web, API và database. Google vẫn quyết định quyền truy cập API, quota và việc xử lý nội dung. Kiến trúc này cũng chưa có hàng đợi cho tác vụ lớn.
+- **Server-side authorization:** NestJS checks the session, role, connection owner, and account/location access before calling a provider. The browser calls the app's API.
+- **Separate login and Business access:** Google login identifies the app user. A separate consent flow connects Business accounts. One app user can connect several Google accounts without changing their session or role.
+- **Swappable providers:** mock and Google use the same `BusinessProfileProvider` interface. Tests can check reads, errors, and permissions with fixed data while Google integration stays on the server.
+- **Shared contracts:** TypeScript and Zod define the data passed between web and API. The UI does not depend directly on database models or Google responses.
+- **Persistent sessions:** PostgreSQL keeps sessions across API restarts. Business refresh tokens are encrypted before storage.
+- **One workspace:** web, API, and contracts can change together, with build and checks run from the repository root.
 
-## 4. Ưu điểm và phạm vi hiện tại
+The trade-off is running a web app, an API, and a database. Google still controls API approval, quotas, and content processing. Large background jobs also need infrastructure that this version does not include.
 
-Ưu điểm chính là giữ được ngữ cảnh nhiều kết nối, tái sử dụng cùng hợp đồng dữ liệu, kiểm soát quyền ở server và có bộ mock để phát triển độc lập với Google. Danh sách dùng infinite scrolling và virtualization để giới hạn số hàng DOM; đây là cách tổ chức tải dữ liệu, chưa phải cam kết hiệu năng theo một benchmark production.
+## 4. Benefits and current features
 
-| Tính năng                                         | Mock                                         | Google                                            |
-| ------------------------------------------------- | -------------------------------------------- | ------------------------------------------------- |
-| Tài khoản, danh sách và chi tiết địa điểm         | Có; 1.000–10.000 địa điểm giả lập            | Có; lấy theo kết nối của người dùng               |
-| Tìm kiếm và lọc trạng thái                        | Theo tên/địa chỉ và trạng thái               | Theo title và trạng thái trước phân trang         |
-| Sửa thông tin địa điểm                            | Có; cần MANAGER và bật chỉnh sửa             | Chưa hỗ trợ; trả `PERMISSION_DENIED`              |
-| Cập nhật hàng loạt thông tin địa điểm             | Có; tối đa 100 ID được chọn rõ ràng mỗi lệnh | Chưa hỗ trợ                                       |
-| Hiệu suất địa điểm và tổng quan tài khoản         | Báo cáo rỗng, không tạo số liệu giả          | Có; cần Business Profile Performance API          |
-| Xem ảnh/video, bài đăng và review                 | Trả trạng thái không khả dụng                | Có; cần Google My Business v4 API                 |
-| Thêm/xóa media, quản lý bài đăng, phản hồi review | Không hỗ trợ                                 | Có; cần MANAGER, bật chỉnh sửa và đủ quyền Google |
-| Ngôn ngữ và giao diện                             | English / Tiếng Việt; sáng / tối / hệ thống  | Dùng chung giao diện                              |
+The main benefits are **one workspace for multiple connections**, **shared data contracts**, **server-side permissions**, and **mock development without Google access**.
 
-### Giới hạn cần biết
+The location list uses **infinite scrolling** to load more data and **virtualization** to keep the number of rendered rows small. Production performance has not been benchmarked.
 
-- Mock mặc định chỉ cấp quyền `account-1`; `account-2` là fixture ngoài phạm vi để kiểm tra từ chối truy cập. Thay đổi mock chỉ nằm trong bộ nhớ, mất khi restart hoặc chuyển instance.
-- PostgreSQL lưu danh tính, membership, session, giao dịch OAuth, kết nối Business và tùy chọn giao diện; chưa lưu bản sao account/location hay lịch sử đồng bộ.
-- Bulk update trả kết quả từng ID, có thể thành công một phần; chưa có queue, lịch chạy, chọn tất cả theo bộ lọc hoặc xử lý nền bằng Redis/BullMQ.
-- Tổng quan hiệu suất đánh dấu dữ liệu chưa đầy đủ khi đang tải hoặc có lỗi. Tổng impressions không phải số khách hàng duy nhất. Chưa có xuất CSV và so sánh kỳ trước.
-- Tích hợp nội dung có code và kiểm thử bằng response giả lập. Theo ghi chú tích hợp hiện có, chưa thực hiện live create/delete/upload/reply; cần kiểm tra trên môi trường được cấp quyền trước khi đưa vào vận hành.
+| Feature                                              | Mock                                        | Google                                                         |
+| ---------------------------------------------------- | ------------------------------------------- | -------------------------------------------------------------- |
+| Accounts, location lists, and location details       | Yes; 1,000–10,000 test locations            | Yes; through the user's connection                             |
+| Search and status filters                            | Name/address and status                     | Title and status, before pagination                            |
+| Edit location profile fields                         | Yes; requires MANAGER and editing enabled   | **Not supported**; returns `PERMISSION_DENIED`                 |
+| Bulk location profile updates                        | Yes; up to **100 selected IDs** per command | **Not supported**                                              |
+| Location performance and account overview            | Empty reports; no invented metrics          | Yes; requires Business Profile Performance API                 |
+| Read photos/videos, posts, and reviews               | Reported as unavailable                     | Yes; requires Google My Business v4 API                        |
+| Add/delete media, manage posts, and reply to reviews | Not supported                               | Yes; requires MANAGER, editing enabled, and Google permissions |
+| Language and theme                                   | English / Vietnamese; light / dark / system | Same interface                                                 |
 
-## 5. Các app vận hành như thế nào?
+### Known limits
+
+- **Mock data is temporary.** Changes live in memory and are lost on restart or when another instance handles the request. Users can access `account-1`; `account-2` is a restricted test account.
+- **No stored copy of Google locations.** PostgreSQL stores users, memberships, sessions, OAuth transactions, Business connections, and UI preferences. It does not store account/location copies or sync history.
+- **Bulk updates can partly fail.** Results are returned for each ID. There is no queue, schedule, select-all-by-filter, or Redis/BullMQ background processing.
+- **Reports can be incomplete.** The overview marks partial data while loading or when requests fail. Total impressions are not unique customers. CSV export and previous-period comparisons are not included.
+- **Live content writes still need verification.** Content features have tests with simulated responses. The integration notes record no live create, delete, upload, or reply checks. Verify these in an authorized environment before rollout.
+
+## 5. How the apps work
 
 ### Business flow
 
 ```mermaid
 flowchart TD
-  A[Đăng nhập app bằng Google hoặc local dev] --> B[Session ứng dụng trong PostgreSQL]
+  A[Sign in with Google or local dev login] --> B[App session in PostgreSQL]
   B --> C{Provider}
-  C -->|Mock| D[Chọn account-1]
-  C -->|Google| E[Thêm hoặc chọn kết nối Google Business]
-  E --> F[Chọn Business account]
-  D --> G[Danh sách địa điểm]
+  C -->|Mock| D[Choose account-1]
+  C -->|Google| E[Add or choose a Google Business connection]
+  E --> F[Choose a business account]
+  D --> G[Location list]
   F --> G
-  G --> H[Overview hiệu suất tài khoản]
-  G --> I[Chi tiết địa điểm]
-  I --> J[Thông tin, Performance, Media, Posts, Reviews]
-  J --> K[Thao tác được hỗ trợ theo role và provider]
+  G --> H[Account performance overview]
+  G --> I[Location details]
+  I --> J[Profile, Performance, Media, Posts, Reviews]
+  J --> K[Actions allowed by role and provider]
 ```
 
-1. Người dùng đăng nhập tại `/login`; app tạo session và chuyển đến `/app`. Đăng nhập chưa tự cấp quyền Business.
-2. Trong Google mode, chọn **Thêm tài khoản Google** để cấp quyền Business, sau đó chọn kết nối và Business account. Khi refresh grant không còn hợp lệ, app yêu cầu kết nối lại.
-3. Mở `/app/accounts/:id/locations` để tìm kiếm, lọc, tải thêm địa điểm hoặc chuyển sang Overview. Overview tổng hợp toàn account, độc lập với bộ lọc bảng.
-4. Mở `/app/locations/:id` để xem chi tiết, hiệu suất và các tab nội dung. `connectionId` đi cùng điều hướng và cache để giữ đúng kết nối.
-5. `VIEWER` được đọc; `MANAGER` có thêm `location:write`. Thao tác ghi vẫn phải qua CSRF, Origin, quyền trên tài nguyên, cờ bật chỉnh sửa và khả năng của provider.
-6. Với mock, MANAGER có thể chọn tối đa 100 địa điểm, xem trước cập nhật và xác nhận. Kết quả hiển thị thành công/thất bại từng địa điểm, cho phép thử lại các ID thất bại.
+1. **Sign in** at `/login`. The app creates a session and opens `/app`. Signing in does not grant Business access.
+2. In Google mode, choose **Add Google account** to grant Business access, then choose a connection and business account. If that permission expires or is revoked, the app asks you to reconnect.
+3. Open `/app/accounts/:id/locations` to search, filter, load more locations, or switch to **Overview**. The overview covers the whole account, regardless of the list's filters.
+4. Open `/app/locations/:id` for profile details, performance, and content tabs. Navigation and cache keys include `connectionId` to keep data tied to the right connection.
+5. **VIEWER** can read. **MANAGER** also has `location:write`. Writes still require CSRF checks, the expected Origin, resource access, editing enabled, and provider support.
+6. With mock data, a manager can select up to **100 locations**, preview an update, and confirm. Results show success or failure for each location. Failed IDs can be retried.
 
-### Kiến trúc và tech stack
+### Architecture and tech stack
 
 ```mermaid
 flowchart LR
-  U[Trình duyệt] --> W[apps/web: Next.js]
-  U -->|Session cookie; CSRF cho thao tác ghi| A[apps/api: NestJS BFF]
-  W -. Kiểm tra health qua API_URL trên Vercel .-> A
+  U[Browser] --> W[apps/web: Next.js]
+  U -->|Session cookie; CSRF for writes| A[apps/api: NestJS BFF]
+  W -. Health check through API_URL on Vercel .-> A
   A --> DB[(PostgreSQL / Prisma)]
   A --> P[BusinessProfileProvider]
-  P --> M[Mock trong bộ nhớ]
+  P --> M[In-memory mock]
   P --> G[Google APIs]
   C[packages/contracts: TypeScript + Zod] -.-> W
   C -.-> A
 ```
 
-| Thành phần           | Vai trò                                                                     | Công nghệ chính                                                                     |
-| -------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `apps/web`           | Đăng nhập, chọn kết nối/account, bảng địa điểm, editor và báo cáo           | Next.js 16, React 19, TypeScript, TanStack Query, TanStack Virtual, React Hook Form |
-| `apps/api`           | BFF, session/OAuth, phân quyền, validation, gọi provider và chuẩn hóa lỗi   | NestJS 11, TypeScript, Google Auth Library, Prisma 6, PostgreSQL adapter            |
-| `packages/contracts` | Kiểu dữ liệu và schema cho identity, location, bulk, content và performance | TypeScript, Zod 4                                                                   |
-| PostgreSQL           | Dữ liệu danh tính và kết nối bền vững                                       | PostgreSQL 17 trong Docker Compose local                                            |
-| Công cụ              | Workspace, lint, format và kiểm thử                                         | npm workspaces, ESLint, Prettier, Node test runner qua `tsx`                        |
-| Deploy               | Hai service API/web và route chung domain                                   | Vercel Services, cấu hình tại `vercel.json`                                         |
+| Component                            | Responsibility                                                                           | Main tools                                                                          |
+| ------------------------------------ | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| **Web** — `apps/web`                 | Login, connection/account selection, location tables, editors, and reports               | Next.js 16, React 19, TypeScript, TanStack Query, TanStack Virtual, React Hook Form |
+| **API** — `apps/api`                 | BFF, sessions/OAuth, permissions, validation, providers, and consistent errors           | NestJS 11, TypeScript, Google Auth Library, Prisma 6, PostgreSQL adapter            |
+| **Contracts** — `packages/contracts` | Shared types and schemas for identity, locations, bulk updates, content, and performance | TypeScript, Zod 4                                                                   |
+| **Database**                         | Persistent user, session, and connection data                                            | PostgreSQL 17 in local Docker Compose                                               |
+| **Development tools**                | Workspace, linting, formatting, and tests                                                | npm workspaces, ESLint, Prettier, Node test runner through `tsx`                    |
+| **Deployment**                       | API and web services on one domain                                                       | Vercel Services, configured in `vercel.json`                                        |
 
-Google token nằm ở server; refresh token Business được mã hóa AES-256-GCM. Trình duyệt dùng opaque session cookie `HttpOnly`, `SameSite=Lax`; database lưu hash session. Khi deploy HTTPS, cookie có `Secure`. Kiểm tra tại UI phục vụ trải nghiệm, quyền truy cập được kiểm tra lại ở API.
+**Google tokens stay on the server.** Business refresh tokens use **AES-256-GCM** encryption. The browser uses an opaque `HttpOnly`, `SameSite=Lax` session cookie; the database stores its hash. HTTPS deployments add `Secure`. UI checks control what users see; the API checks what they can access.
 
 ## 6. Setup
 
-### Chạy local với mock, không cần Google credentials
+### Run locally with mock data
 
-Yêu cầu Node.js **22.12+**, npm và Docker Compose. Thực hiện tại thư mục gốc repo.
+You need **Node.js 22.12+**, **npm**, and **Docker Compose**. Run these commands from the repository root. Google credentials are not required for mock mode.
 
 ```bash
 npm install
@@ -128,7 +132,7 @@ cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env.local
 ```
 
-Repo chưa có `.env.example` ở thư mục gốc. Tạo file `.env` cho Docker Compose với các giá trị local do bạn chọn, ví dụ:
+There is no root `.env.example` yet. Create a root `.env` file for Docker Compose with your own local values, for example:
 
 ```dotenv
 POSTGRES_USER=gbp_local
@@ -136,7 +140,7 @@ POSTGRES_PASSWORD=change_this_local_password
 POSTGRES_DB=gbp_local
 ```
 
-Trong `apps/api/.env`, đặt `DATABASE_URL` khớp các giá trị vừa chọn. URL-encode ký tự đặc biệt trong username/password nếu có.
+In `apps/api/.env`, match `DATABASE_URL` to those values. URL-encode any special characters in the username or password.
 
 ```dotenv
 DATABASE_URL=postgresql://gbp_local:change_this_local_password@localhost:5432/gbp_local
@@ -146,7 +150,7 @@ LOCAL_DEV_LOGIN_ENABLED=true
 LOCATION_UPDATES_DISABLED=true
 ```
 
-Trong `apps/web/.env.local`, đặt:
+In `apps/web/.env.local`, set:
 
 ```dotenv
 NEXT_PUBLIC_BFF_ORIGIN=http://localhost:3001
@@ -154,7 +158,7 @@ LOCAL_DEV_LOGIN_ENABLED=true
 LOCATION_UPDATES_DISABLED=true
 ```
 
-Hai file example hiện đặt cờ chỉnh sửa khác nhau; cấu hình trên đặt rõ cả hai app ở chế độ tắt chỉnh sửa. Local login chỉ dành cho development, mặc định tắt và không thể bật trong production.
+The two example files currently use different editing settings. The values above **disable editing in both apps**. Local login is off by default, is for development only, and cannot be enabled in production.
 
 ```bash
 docker compose up -d --wait
@@ -164,126 +168,134 @@ npm run build -w @gbp/contracts
 npm run dev
 ```
 
-Dùng `prisma migrate deploy` để áp dụng migration đã commit. Khi chủ động thay đổi schema trong development, dùng `npm run db:migrate` để tạo/apply migration.
+Use `prisma migrate deploy` to apply committed migrations. When changing the schema during development, use `npm run db:migrate` to create and apply a migration.
 
-Mở <http://localhost:3000/login>, chọn **Sign in locally** rồi vào `/app`. API cần kết nối được PostgreSQL khi khởi động. Kiểm tra API:
+Open <http://localhost:3000/login>, choose **Sign in locally**, and open `/app`. The API needs PostgreSQL available at startup. Check the API with:
 
 ```bash
 curl http://localhost:3001/health
 ```
 
-Kết quả mong đợi: `{ "status": "ok" }`. Đây là liveness, không phải truy vấn database readiness cho mỗi request. Chưa đăng nhập thì `/api/me` trả 401; `/app` chuyển về `/login`.
+Expected result: `{ "status": "ok" }`. This checks whether the API is running; it does not query database readiness on each request. Without a session, `/api/me` returns **401** and `/app` redirects to `/login`.
 
-Dừng PostgreSQL bằng `docker compose down`; named volume vẫn giữ dữ liệu. Các file `.env` thật được ignore, chỉ commit cấu hình mẫu.
+Stop PostgreSQL with `docker compose down`. Its named volume keeps the data. Real `.env` files are ignored by Git; commit only example configuration.
 
-### Thử chỉnh sửa với mock
+### Try editing mock locations
 
-Local login tạo fixture `local.viewer@example.test` với role `VIEWER`. Mở `npm exec -w @gbp/api -- prisma studio`, tìm Membership của user này và đổi role sang `MANAGER`, rồi tải lại app.
+Local login creates `local.viewer@example.test` with the **VIEWER** role. Run `npm exec -w @gbp/api -- prisma studio`, find that user's Membership, change the role to **MANAGER**, and reload the app.
 
-Đặt `LOCATION_UPDATES_DISABLED=false` trong **cả hai** file môi trường API/web và restart cả hai app để bật editor. Khi biến không được đặt, chỉnh sửa bị tắt; cờ cũng áp dụng cho thao tác ghi nội dung Google. Đổi lại `true` để tắt. Role MANAGER và cờ này không mở khóa việc sửa thông tin địa điểm Google chưa được triển khai.
+Set `LOCATION_UPDATES_DISABLED=false` in **both API and web environment files**, then restart both apps. This enables editing. If the variable is unset, editing is disabled. The flag also controls Google content writes. Set it back to `true` to disable writes.
 
-Có thể đặt `MOCK_LOCATION_COUNT=10000` trong API để thử danh sách lớn. Xem [read flows và bulk selection](docs/read-flows.md) để kiểm tra lựa chọn xuyên trang và lỗi từng ID.
+The MANAGER role and this flag do not enable Google location profile edits; that feature is not implemented.
 
-### Đăng nhập Google và kết nối dữ liệu thật
+Set `MOCK_LOCATION_COUNT=10000` in the API environment to try a larger list. See [read flows and bulk selection](docs/read-flows.md) for selection across pages and per-ID failures.
 
-Hai luồng OAuth có callback riêng, dù có thể dùng chung OAuth client:
+### Set up Google login and real Business data
 
-| Mục đích                | Biến chỉ đặt tại API                                                                | Callback local                                        |
-| ----------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| Đăng nhập app (OIDC)    | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI` | `http://localhost:3001/auth/google/callback`          |
-| Kết nối Google Business | `GBP_GOOGLE_CLIENT_ID`, `GBP_GOOGLE_CLIENT_SECRET`, `GBP_GOOGLE_REDIRECT_URI`       | `http://localhost:3001/auth/google-business/callback` |
+**Login and Business access are separate OAuth flows.** They use separate callbacks, but can share an OAuth client.
 
-1. Tạo/cấu hình Google Cloud project, OAuth consent screen và web OAuth client; đăng ký chính xác callback. Để gọi GBP, project cần được cấp quyền API và bật các API tương ứng. Xem [điều kiện truy cập của Google](https://developers.google.com/my-business/content/prereqs) và [hướng dẫn OAuth](https://developers.google.com/my-business/content/implement-oauth).
-2. Đặt bộ biến đăng nhập để bật nút Google sign-in. Nếu chưa cấu hình, endpoint đăng nhập Google trả 404; local login vẫn dùng được khi bật rõ ràng.
-3. Để lấy dữ liệu thật, đặt `BUSINESS_PROFILE_PROVIDER=google`, bộ biến `GBP_GOOGLE_*` và `GBP_TOKEN_ENCRYPTION_KEY` tại API. Tạo khóa 32 byte dạng 64 ký tự hex bằng lệnh dưới đây.
-4. Giữ khóa ổn định qua restart và các instance; thay khóa khiến các kết nối đã lưu cần được kết nối lại. Apply migrations và restart app sau khi thay cấu hình.
-5. Đăng nhập app, chọn **Thêm tài khoản Google**, cấp quyền rồi chọn Business account. Không cần điền refresh token, user ID hay account ID thủ công.
+| Purpose                        | API-only variables                                                                  | Local callback                                        |
+| ------------------------------ | ----------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| **App login (OIDC)**           | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI` | `http://localhost:3001/auth/google/callback`          |
+| **Google Business connection** | `GBP_GOOGLE_CLIENT_ID`, `GBP_GOOGLE_CLIENT_SECRET`, `GBP_GOOGLE_REDIRECT_URI`       | `http://localhost:3001/auth/google-business/callback` |
+
+1. Set up a Google Cloud project, OAuth consent screen, and web OAuth client. Register the exact callbacks. GBP access requires API approval and the relevant APIs enabled. See [Google's access requirements](https://developers.google.com/my-business/content/prereqs) and [OAuth guide](https://developers.google.com/my-business/content/implement-oauth).
+2. Set the login variables to enable Google sign-in. Without them, the Google login endpoint returns 404. Local login remains available when explicitly enabled.
+3. For real data, set `BUSINESS_PROFILE_PROVIDER=google`, the `GBP_GOOGLE_*` variables, and `GBP_TOKEN_ENCRYPTION_KEY` in the API environment. Generate a 32-byte key as 64 hex characters with the command below.
+4. **Keep the encryption key stable** across restarts and instances. Changing it requires reconnecting stored accounts. Apply migrations and restart after configuration changes.
+5. Sign in, choose **Add Google account**, grant access, and select a business account. You do not need to enter refresh tokens, user IDs, or account IDs by hand.
 
 ```bash
 node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 ```
 
-Account Management và Business Information phục vụ account/location; Performance phục vụ báo cáo; Google My Business v4 phục vụ media/posts/reviews. Bật các API theo tính năng cần dùng. Chi tiết biến môi trường, reconnect, scope và giới hạn tích hợp nằm trong [Google provider setup](docs/google-provider.md).
+Enable APIs for the features you need:
 
-Không đặt client secret, token hoặc khóa mã hóa vào `NEXT_PUBLIC_*`. Đăng nhập app thành công không đồng nghĩa project đã được cấp quyền truy cập các Business API.
+- **Account Management + Business Information:** accounts and locations.
+- **Business Profile Performance:** performance reports.
+- **Google My Business v4:** media, posts, and reviews.
 
-### Deploy Vercel
+See [Google provider setup](docs/google-provider.md) for environment variables, reconnect steps, scopes, and integration limits.
 
-Import repo thành **một Vercel project**, root là thư mục gốc repo. `vercel.json` build độc lập service `api` và `web`, bao gồm contracts; `/api/*` và `/auth/*` tới NestJS, các đường dẫn còn lại tới Next.js. Xem [Vercel Services](https://vercel.com/docs/services) cho mô hình triển khai.
+Keep client secrets, tokens, and encryption keys out of `NEXT_PUBLIC_*` variables. Successful app login does not mean the Cloud project has Business API access.
 
-- Cấp PostgreSQL truy cập được từ deployment; Docker Compose chỉ cung cấp database local.
-- Đặt `DATABASE_URL`, `WEB_ORIGIN=https://<your-domain>` và các biến OAuth cần dùng. Callback production lần lượt là `https://<your-domain>/auth/google/callback` và `https://<your-domain>/auth/google-business/callback`.
-- Với Google provider, đặt `BUSINESS_PROFILE_PROVIDER=google` và giữ `GBP_TOKEN_ENCRYPTION_KEY` trong secret management. Cấu hình preview riêng với origin/callback tương ứng.
-- Để local login và các local lab tắt. Đặt cờ chỉnh sửa nhất quán ở cả hai service.
-- Apply migration trên database deployment trước khi phục vụ traffic: `npm exec -w @gbp/api -- prisma migrate deploy`.
-- Để `NEXT_PUBLIC_BFF_ORIGIN` unset trên Vercel. `API_URL` được binding của Vercel inject cho web; không tự đặt hoặc đưa vào biến public.
+### Deploy on Vercel
 
-Kiểm tra `/health`, `/login` và `/api/me` sau deploy; `/api/me` trả 401 nếu chưa đăng nhập. `/health` trên Vercel là route Next.js kiểm tra NestJS qua `API_URL`. Mock edits không bền vững giữa các function instance.
+Import the repository as **one Vercel project**, with the repository root as its root directory. `vercel.json` builds the `api` and `web` services separately, including contracts. `/api/*` and `/auth/*` go to NestJS; other paths go to Next.js. See [Vercel Services](https://vercel.com/docs/services).
 
-Để thử routing Services từ thư mục gốc, chạy `npx vercel dev` hoặc `npx vercel dev -L` khi không dùng cloud authentication. Bỏ override `NEXT_PUBLIC_BFF_ORIGIN` local và đặt `WEB_ORIGIN` theo origin CLI in ra; Vercel inject `API_URL`.
+- Use a PostgreSQL database reachable from the deployment. Docker Compose provides only the local database.
+- Set `DATABASE_URL`, `WEB_ORIGIN=https://<your-domain>`, and the required OAuth variables. Production callbacks are `https://<your-domain>/auth/google/callback` and `https://<your-domain>/auth/google-business/callback`.
+- For Google mode, set `BUSINESS_PROFILE_PROVIDER=google` and store `GBP_TOKEN_ENCRYPTION_KEY` in secret management. Give preview environments their own matching origin and callbacks.
+- Keep local login and local labs disabled. Use matching editing flags in both services.
+- Apply migrations before serving traffic: `npm exec -w @gbp/api -- prisma migrate deploy`.
+- Leave `NEXT_PUBLIC_BFF_ORIGIN` unset. Vercel injects **`API_URL`** through the web-to-API binding. Do not set it yourself or expose it through a public variable.
 
-### Lệnh phát triển và kiểm tra
+After deployment, check `/health`, `/login`, and `/api/me`. Without a session, `/api/me` returns 401. On Vercel, `/health` is a Next.js route that checks NestJS through `API_URL`. Mock edits do not persist across function instances.
 
-| Lệnh                                      | Mục đích                                |
-| ----------------------------------------- | --------------------------------------- |
-| `npm run dev`                             | Chạy web và API                         |
-| `npm run build`                           | Build contracts, API và web theo thứ tự |
-| `npm run lint`                            | Kiểm tra lint                           |
-| `npm run typecheck`                       | Kiểm tra type trong workspace           |
-| `npm test`                                | Chạy test API và web bằng fixture       |
-| `npm run format` / `npm run format:check` | Format / kiểm tra format                |
-| `npm run db:generate`                     | Sinh Prisma client                      |
-| `npm run db:migrate`                      | Tạo/apply migration trong development   |
+To test service routing locally, run `npx vercel dev`, or `npx vercel dev -L` without cloud authentication, from the repository root. Remove the local `NEXT_PUBLIC_BFF_ORIGIN` override and set `WEB_ORIGIN` to the origin printed by the CLI. Vercel injects `API_URL`.
 
-Test mặc định không cần database thật hay gọi Google. Với PostgreSQL local/test đã migrate, có thể kiểm tra session bền vững:
+### Development and checks
+
+| Command                                   | Purpose                                    |
+| ----------------------------------------- | ------------------------------------------ |
+| `npm run dev`                             | Run web and API                            |
+| `npm run build`                           | Build contracts, API, then web             |
+| `npm run lint`                            | Check lint rules                           |
+| `npm run typecheck`                       | Check workspace types                      |
+| `npm test`                                | Run API and web tests with fixed test data |
+| `npm run format` / `npm run format:check` | Format files / check formatting            |
+| `npm run db:generate`                     | Generate the Prisma client                 |
+| `npm run db:migrate`                      | Create/apply development migrations        |
+
+Default tests do not need a live database or Google calls. With a migrated local/test PostgreSQL database, run the optional persistent-session test:
 
 ```bash
 RUN_SESSION_DB_TESTS=true NODE_ENV=test npm exec -w @gbp/api -- tsx --test test/session.database.test.ts
 ```
 
-Test này tạo/tái sử dụng fixture VIEWER và xóa session test sau khi chạy. Các kiểm tra OAuth/database bổ sung được hướng dẫn trong tài liệu tích hợp.
+This test creates or reuses the local VIEWER user and removes its test session afterward. The integration docs cover extra OAuth/database checks.
 
-### Các lỗi setup thường gặp
+### Common setup issues
 
-| Hiện tượng                                        | Kiểm tra                                                                                           |
-| ------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| API không khởi động                               | PostgreSQL đã healthy; `DATABASE_URL` khớp Compose; migration đã apply                             |
-| Không thấy local login                            | `LOCAL_DEV_LOGIN_ENABLED=true` ở cả API/web; chạy bằng `npm run dev`; restart sau khi sửa env      |
-| Không thấy editor hoặc ghi bị 403                 | Membership phải là MANAGER, cờ updates phải là `false` ở cả hai app; provider phải hỗ trợ thao tác |
-| Google login được nhưng không có dữ liệu Business | Kết nối Business là luồng riêng; kiểm tra provider, consent và quyền API của Cloud project         |
-| Media/posts/reviews bị 403                        | Kiểm tra Google My Business v4 API đã bật, quyền account/location và điều kiện của endpoint        |
-| Google trả 429                                    | Đợi rồi thử lại; kiểm tra quota và nhịp đọc, đặc biệt khi tải overview nhiều địa điểm              |
-| `/health` trên Vercel trả 503                     | Kiểm tra service API và binding `API_URL`                                                          |
+| Issue                                               | What to check                                                                                             |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| **API will not start**                              | PostgreSQL is healthy, `DATABASE_URL` matches Compose, and migrations are applied                         |
+| **Local login is missing**                          | Set `LOCAL_DEV_LOGIN_ENABLED=true` in both apps, use `npm run dev`, and restart after environment changes |
+| **Editor is missing or writes return 403**          | Membership is MANAGER, updates are enabled in both apps, and the provider supports the action             |
+| **Google login works but no Business data appears** | Connect Business access separately; check provider settings, consent, and Cloud API approval              |
+| **Media/posts/reviews return 403**                  | Check Google My Business v4 API, account/location permissions, and endpoint requirements                  |
+| **Google returns 429**                              | Wait before retrying; check quotas and request volume, especially for large account overviews             |
+| **Vercel `/health` returns 503**                    | Check the API service and `API_URL` binding                                                               |
 
-## 7. Nguồn và tài liệu
+## 7. Sources and documentation
 
-### Trong repository
+### In this repository
 
-- [Kiến trúc và ranh giới các thành phần](docs/architecture.md).
-- [Google login: OIDC, PKCE, state và nonce](docs/auth-flow.md).
-- [Google provider: cấu hình, kết nối, performance và nội dung](docs/google-provider.md).
-- [Luồng đọc, danh sách lớn và bulk update](docs/read-flows.md).
-- [CSRF/CORS và kiểm tra thủ công](docs/csrf-cors.md).
-- [Rendering security và XSS lab](docs/security-notes.md).
-- Mã nguồn: [web](apps/web), [API](apps/api), [contracts](packages/contracts), [database schema](apps/api/prisma/schema.prisma), [cấu hình deploy](vercel.json).
+- [Architecture and component boundaries](docs/architecture.md).
+- [Google login: OIDC, PKCE, state, and nonce](docs/auth-flow.md).
+- [Google provider: setup, connections, performance, and content](docs/google-provider.md).
+- [Read flows, large lists, and bulk updates](docs/read-flows.md).
+- [CSRF/CORS and manual checks](docs/csrf-cors.md).
+- [Rendering security and XSS lab](docs/security-notes.md).
+- **Source code:** [web](apps/web), [API](apps/api), [contracts](packages/contracts), [database schema](apps/api/prisma/schema.prisma), and [deployment config](vercel.json).
 
-Một số tài liệu kiến trúc/read flow vẫn còn đoạn mô tả giai đoạn bootstrap. Đối chiếu bảng phạm vi trong README, tài liệu Google provider và implementation khi đánh giá tính năng hiện tại.
+Some architecture/read-flow sections still describe the early bootstrap stage. Check this README's feature table, the Google provider guide, and the implementation for current support.
 
-### Tài liệu chính thức
+### Official references
 
-- [Google Business Profile overview](https://developers.google.com/my-business/content/overview): nền tảng và mục đích của Business Profile APIs.
-- [API access prerequisites](https://developers.google.com/my-business/content/prereqs): điều kiện truy cập và bật API.
-- [OAuth với Business Profile](https://developers.google.com/my-business/content/implement-oauth): cấp quyền truy cập Business data.
-- [API reference](https://developers.google.com/my-business/ref_overview): các API theo chức năng; tài liệu endpoint cụ thể được dẫn trong Google provider setup.
-- [Business Profile Performance API](https://developers.google.com/my-business/reference/performance/rest): các endpoint daily metrics và monthly keyword impressions.
-- [Vercel Services](https://vercel.com/docs/services): triển khai nhiều service trong một project.
+- [Google Business Profile overview](https://developers.google.com/my-business/content/overview): what Business Profile APIs do.
+- [API access requirements](https://developers.google.com/my-business/content/prereqs): approval and API setup.
+- [Business Profile OAuth](https://developers.google.com/my-business/content/implement-oauth): granting access to Business data.
+- [API reference](https://developers.google.com/my-business/ref_overview): APIs by feature. The Google provider guide links to individual endpoints.
+- [Business Profile Performance API](https://developers.google.com/my-business/reference/performance/rest): daily metrics and monthly keyword impressions.
+- [Vercel Services](https://vercel.com/docs/services): multiple services in one project.
 
-## Phụ lục: kiểm tra session và local authorization lab
+## Appendix: session checks and local authorization lab
 
-Hướng dẫn thủ công hiện có được giữ bên dưới để tái hiện các ca session và phân quyền. Lab cố ý sai chỉ dành cho máy local, mặc định tắt; không bật trên môi trường dùng chung.
+The manual checks below cover sessions and access control. The lab deliberately bypasses some checks for comparison. It is **local only**, off by default, and must stay disabled in shared environments.
 
 <details>
-<summary>Manual session checks và authorization comparison lab (English)</summary>
+<summary>Manual session checks and authorization comparison lab</summary>
 
 ### Location authorization and local comparison lab
 
